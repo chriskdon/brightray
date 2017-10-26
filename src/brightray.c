@@ -10,10 +10,18 @@
 
 #include "brightray.h"
 
-#define MAXBUF    1024
+#define MAXBUF 2048
+
+typedef struct brightray_route_node {
+  const char *route;
+  const char *text;
+  struct brightray_route_node *next; 
+} brightray_route_node;
 
 typedef struct brightray {
   int port;
+  brightray_route_node *routes_root;
+  brightray_route_node *routes_last;
 } brightray;
 
 volatile bool listen_for_connections = true;
@@ -28,12 +36,28 @@ void brightray_set_port(brightray *br, int port) {
   br->port = port;
 }
 
-void brightray_route_add(brightray *br, const char* route, int (*handler)()) {
-  // TODO: Add route handler
+void brightray_route_add(brightray *br, const char *route, const char *text) {
+  brightray_route_node *node = malloc(sizeof(brightray_route_node));
+
+  node->route = route;
+  node->text = text;
+  node->next = NULL;
+
+  if(br->routes_last == NULL) {
+    br->routes_root = node;
+  } else {
+    br->routes_last->next = node;
+  }
+
+  br->routes_last = node;
 }
 
 brightray* brightray_new() {
   brightray *br = malloc(sizeof(brightray));
+
+  br->port = 8080;
+  br->routes_root = NULL;
+  br->routes_last = NULL;
 
   return br;
 }
@@ -73,7 +97,7 @@ int brightray_run(brightray *br) {
   }
 
   // Template
-  char * html_template = "HTTP/1.0 200 OK\r\n"
+  char * html_template = "HTTP/1.1 200 OK\r\n"
                          "Server: Brighray 0.0.1\r\n"
                          "Content-Length: %d\r\n"
                          "Content-Type: text/html\r\n"
@@ -102,12 +126,23 @@ int brightray_run(brightray *br) {
     sscanf(buffer_recv,"GET %s HTTP/1.1", path);
     printf("Path: %s\n", path);
 
-    // Send response
-    const char* test = "<b>Hello World</b>";
-    int send_length = sprintf(buffer_send, html_template, strlen(test), test);
-    write(clientfd, buffer_send, send_length);
+    // Find matching route handler
+    brightray_route_node *handler = br->routes_root;  
+    while(handler != NULL && strcmp(handler->route, path) != 0) {
+      handler = handler->next;
+    }
 
-    // Close
+    // Send Response
+    if(handler == NULL) {
+      const char* test = "<b>Not Found</b>";
+      int send_length = sprintf(buffer_send, html_template, strlen(test), test);
+      write(clientfd, buffer_send, send_length);
+    } else {
+      int send_length = sprintf(buffer_send, html_template, strlen(handler->text), handler->text);
+      write(clientfd, buffer_send, send_length);
+    }
+
+    // Close client socket
     close(clientfd);
   }
 

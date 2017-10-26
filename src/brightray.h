@@ -11,6 +11,6 @@ int brightray_run(brightray *br);
 void brightray_set_port(brightray *br, int port);
 
 // Routing
-void brightray_route_add(brightray *br, const char* route, int (*handler)());
+void brightray_route_add(brightray *br, const char *route, const char *text);
 
 #endif
