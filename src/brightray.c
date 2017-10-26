@@ -12,6 +12,10 @@
 
 #define MAXBUF    1024
 
+typedef struct brightray {
+  int port;
+} brightray;
+
 volatile bool listen_for_connections = true;
 int sockfd; // Listening socket
 
@@ -20,13 +24,21 @@ static void shutdown_server(int _){
   close(sockfd);
 }
 
-brightray_t* brightray_new() {
-  brightray_t *br = malloc(sizeof(brightray_t));
+void brightray_set_port(brightray *br, int port) {
+  br->port = port;
+}
+
+void brightray_route_add(brightray *br, const char* route, int (*handler)()) {
+  // TODO: Add route handler
+}
+
+brightray* brightray_new() {
+  brightray *br = malloc(sizeof(brightray));
 
   return br;
 }
 
-int brightray_run(brightray_t *br) {
+int brightray_run(brightray *br) {
   signal(SIGINT,shutdown_server);
   signal(SIGTERM,shutdown_server);
   
@@ -60,6 +72,14 @@ int brightray_run(brightray_t *br) {
     exit(errno);
   }
 
+  // Template
+  char * html_template = "HTTP/1.0 200 OK\r\n"
+                         "Server: Brighray 0.0.1\r\n"
+                         "Content-Length: %d\r\n"
+                         "Content-Type: text/html\r\n"
+                         "\r\n"
+                         "%s";
+
   // Listen for connections
   while(listen_for_connections) {
     int clientfd;
@@ -74,18 +94,18 @@ int brightray_run(brightray_t *br) {
     
     printf("%s:%d connected\n", inet_ntoa(client_addr.sin_addr), ntohs(client_addr.sin_port));
 
-    //int length = recv(clientfd, buffer_recv, MAXBUF, 0);
+    // Get the request
+    recv(clientfd, buffer_recv, MAXBUF, 0);
+
+    // Parse request
+    char path[500];
+    sscanf(buffer_recv,"GET %s HTTP/1.1", path);
+    printf("Path: %s\n", path);
 
     // Send response
-    char * sendstr = "HTTP/1.0 200 OK\r\n"
-                     "Date: Sun, 18 Oct 2009 08:56:53 GMT\r\n"
-                     "Server: Brighray 0.0.1\r\n"
-                     "Content-Length: 12\r\n"
-                     "Content-Type: text/html\r\n"
-                     "\r\n"
-                     "Hello world!";
-
-    write(clientfd, sendstr, strlen(sendstr));
+    const char* test = "<b>Hello World</b>";
+    int send_length = sprintf(buffer_send, html_template, strlen(test), test);
+    write(clientfd, buffer_send, send_length);
 
     // Close
     close(clientfd);
