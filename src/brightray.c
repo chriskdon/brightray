@@ -9,7 +9,7 @@
 #define MY_PORT   9090
 #define MAXBUF    1024
 
-int main() {
+int brightray_run() {
   //printf("Starting Brightray");
 
   int sockfd;
