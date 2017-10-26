@@ -5,14 +5,33 @@
 #include <sys/socket.h>
 #include <resolv.h>
 #include <arpa/inet.h>
+#include <unistd.h>
+#include <stdbool.h>
 
-#define MY_PORT   9090
+#include "brightray.h"
+
 #define MAXBUF    1024
 
-int brightray_run() {
-  //printf("Starting Brightray");
+volatile bool listen_for_connections = true;
+int sockfd; // Listening socket
 
-  int sockfd;
+static void shutdown_server(int _){
+  listen_for_connections = false;
+  close(sockfd);
+}
+
+brightray_t* brightray_new() {
+  brightray_t *br = malloc(sizeof(brightray_t));
+
+  return br;
+}
+
+int brightray_run(brightray_t *br) {
+  signal(SIGINT,shutdown_server);
+  signal(SIGTERM,shutdown_server);
+  
+  printf("Starting Brightray: http://localhost:%d\n", br->port);
+  
   struct sockaddr_in self;
   char buffer_recv[MAXBUF];
   char buffer_send[MAXBUF];
@@ -26,7 +45,7 @@ int brightray_run() {
   // Initialize address/port struct
   bzero(&self, sizeof(self));
   self.sin_family       = AF_INET;
-  self.sin_port         = htons(MY_PORT);
+  self.sin_port         = htons(br->port);
   self.sin_addr.s_addr  = INADDR_ANY;
 
   // Assign a port number to the socket
@@ -42,13 +61,17 @@ int brightray_run() {
   }
 
   // Listen for connections
-  while(1) {
+  while(listen_for_connections) {
     int clientfd;
     struct sockaddr_in client_addr;
     int addrlen = sizeof(client_addr);
 
     // Accept connection
-    clientfd = accept(sockfd, (struct sockaddr*)&client_addr, &addrlen);
+    clientfd = accept(sockfd, (struct sockaddr*)&client_addr, (socklen_t*)&addrlen);
+    
+    // The socket was closed when there were no connections
+    if(!listen_for_connections) { break; }
+    
     printf("%s:%d connected\n", inet_ntoa(client_addr.sin_addr), ntohs(client_addr.sin_port));
 
     //int length = recv(clientfd, buffer_recv, MAXBUF, 0);
@@ -68,7 +91,7 @@ int brightray_run() {
     close(clientfd);
   }
 
-  // Cleanup
-  close(sockfd);
+  printf("Server Shutdown Complete\n");
+
   return 0;
 }

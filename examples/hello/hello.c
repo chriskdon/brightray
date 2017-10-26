@@ -1,5 +1,9 @@
 #include <brightray.h>
 
 int main() {
-  return brightray_run();
+  brightray_t *br = brightray_new();
+
+  br->port = 8080;
+
+  return brightray_run(br);
 }
