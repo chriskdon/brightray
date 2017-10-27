@@ -23,7 +23,5 @@ int main() {
   br_server_route_add(br, "/test", handler);
   br_server_route_add(br, "/world", handler);
 
-  br_server_route_default(br, default_handler);
-
   return br_server_run(br);
 }

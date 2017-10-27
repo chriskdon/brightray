@@ -73,12 +73,19 @@ void br_response_set_content_string(br_response * response, const char * str) {
   response->content = str;
 }
 
+int br_default_handler(const br_request *req, br_response *res) {
+  br_response_set_content_string(res, "Not Found");
+
+  return 0;
+}
+
 br_server* br_server_new() {
   br_server *br = malloc(sizeof(br_server));
 
   br->port = 8080;
   br->routes_root = NULL;
   br->routes_last = NULL;
+  br->default_handler = br_default_handler;
 
   return br;
 }
