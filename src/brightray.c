@@ -15,7 +15,8 @@
 typedef struct brightray_route_node {
   const char * route;
   br_handler handler;
-  struct brightray_route_node * next; 
+  struct brightray_route_node * next;
+  struct brightray_route_node * prev; 
 } brightray_route_node;
 
 typedef struct br_server {
@@ -51,6 +52,7 @@ void br_server_route_add(br_server *br, const char *route, const br_handler hand
   node->route = route;
   node->handler = handler;
   node->next = NULL;
+  node->prev = br->routes_last;
 
   if(br->routes_last == NULL) {
     br->routes_root = node;
@@ -79,8 +81,8 @@ int br_default_handler(const br_request *req, br_response *res) {
   return 0;
 }
 
-br_server* br_server_new() {
-  br_server *br = malloc(sizeof(br_server));
+br_server * br_server_new() {
+  br_server * br = malloc(sizeof(br_server));
 
   br->port = 8080;
   br->routes_root = NULL;
@@ -90,7 +92,16 @@ br_server* br_server_new() {
   return br;
 }
 
-int br_server_run(const br_server *br) {
+void br_server_free(br_server * br) {
+  for(brightray_route_node *node = br->routes_last; node != NULL; node = node->prev)
+  {
+    free(node);
+  }
+
+  free(br);
+}
+
+int br_server_run(br_server * br) {
   signal(SIGINT,shutdown_server);
   signal(SIGTERM,shutdown_server);
   
@@ -188,6 +199,8 @@ int br_server_run(const br_server *br) {
     // Close client socket
     close(clientfd);
   }
+
+  br_server_free(br);
 
   printf("Server Shutdown Complete\n");
 

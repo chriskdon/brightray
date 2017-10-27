@@ -8,12 +8,6 @@ int handler(const br_request *req, br_response *res) {
   return 0;
 }
 
-int default_handler(const br_request *req, br_response *res) {
-  br_response_set_content_string(res, "Not Found");
-
-  return 0;
-}
-
 int main() {
   br_server *br = br_server_new();
 

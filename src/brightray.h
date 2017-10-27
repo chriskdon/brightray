@@ -8,11 +8,11 @@ typedef struct br_response br_response;
 
 typedef int (* br_handler)(const br_request * request, br_response * response);
 
-// Create a new server
 br_server * br_server_new();
+void br_server_free(br_server * br);
 
 // Run Server
-int br_server_run(const br_server * br);
+int br_server_run(br_server * br);
 
 // Config
 void br_server_set_port(br_server * br, int port);
