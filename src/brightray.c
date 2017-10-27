@@ -18,11 +18,11 @@ typedef struct brightray_route_node {
   struct brightray_route_node *next; 
 } brightray_route_node;
 
-typedef struct brightray {
+typedef struct br_server {
   int port;
   brightray_route_node *routes_root;
   brightray_route_node *routes_last;
-} brightray;
+} br_server;
 
 volatile bool listen_for_connections = true;
 int sockfd; // Listening socket
@@ -32,11 +32,11 @@ static void shutdown_server(int _){
   close(sockfd);
 }
 
-void brightray_set_port(brightray *br, int port) {
+void br_server_set_port(br_server *br, int port) {
   br->port = port;
 }
 
-void brightray_route_add(brightray *br, const char *route, const char *text) {
+void br_server_route_add(br_server *br, const char *route, const char *text) {
   brightray_route_node *node = malloc(sizeof(brightray_route_node));
 
   node->route = route;
@@ -52,8 +52,8 @@ void brightray_route_add(brightray *br, const char *route, const char *text) {
   br->routes_last = node;
 }
 
-brightray* brightray_new() {
-  brightray *br = malloc(sizeof(brightray));
+br_server* br_server_new() {
+  br_server *br = malloc(sizeof(br_server));
 
   br->port = 8080;
   br->routes_root = NULL;
@@ -62,7 +62,7 @@ brightray* brightray_new() {
   return br;
 }
 
-int brightray_run(brightray *br) {
+int br_server_run(br_server *br) {
   signal(SIGINT,shutdown_server);
   signal(SIGTERM,shutdown_server);
   
