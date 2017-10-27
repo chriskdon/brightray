@@ -13,16 +13,25 @@
 #define MAXBUF 2048
 
 typedef struct brightray_route_node {
-  const char *route;
-  const char *text;
-  struct brightray_route_node *next; 
+  const char * route;
+  br_handler handler;
+  struct brightray_route_node * next; 
 } brightray_route_node;
 
 typedef struct br_server {
   int port;
-  brightray_route_node *routes_root;
-  brightray_route_node *routes_last;
+  brightray_route_node * routes_root;
+  brightray_route_node * routes_last;
+  br_handler default_handler;
 } br_server;
+
+typedef struct br_request {
+  const char * path;
+} br_request;
+
+typedef struct br_response {
+  const char * content;
+} br_response;
 
 volatile bool listen_for_connections = true;
 int sockfd; // Listening socket
@@ -36,11 +45,11 @@ void br_server_set_port(br_server *br, int port) {
   br->port = port;
 }
 
-void br_server_route_add(br_server *br, const char *route, const char *text) {
+void br_server_route_add(br_server *br, const char *route, const br_handler handler) {
   brightray_route_node *node = malloc(sizeof(brightray_route_node));
 
   node->route = route;
-  node->text = text;
+  node->handler = handler;
   node->next = NULL;
 
   if(br->routes_last == NULL) {
@@ -50,6 +59,18 @@ void br_server_route_add(br_server *br, const char *route, const char *text) {
   }
 
   br->routes_last = node;
+}
+
+void br_server_route_default(br_server * br, const br_handler handler) {
+  br->default_handler = handler;
+}
+
+const char * br_request_path(const br_request * request) {
+  return request->path;
+}
+
+void br_response_set_content_string(br_response * response, const char * str) {
+  response->content = str;
 }
 
 br_server* br_server_new() {
@@ -62,7 +83,7 @@ br_server* br_server_new() {
   return br;
 }
 
-int br_server_run(br_server *br) {
+int br_server_run(const br_server *br) {
   signal(SIGINT,shutdown_server);
   signal(SIGTERM,shutdown_server);
   
@@ -126,21 +147,36 @@ int br_server_run(br_server *br) {
     sscanf(buffer_recv,"GET %s HTTP/1.1", path);
     printf("Path: %s\n", path);
 
-    // Find matching route handler
-    brightray_route_node *handler = br->routes_root;  
-    while(handler != NULL && strcmp(handler->route, path) != 0) {
-      handler = handler->next;
+    // Fill Request
+    br_request request = {
+      .path = path
+    };
+
+    // Find matching route route
+    brightray_route_node *route = br->routes_root;  
+    while(route != NULL && strcmp(route->route, path) != 0) {
+      route = route->next;
     }
 
-    // Send Response
-    if(handler == NULL) {
-      const char* test = "<b>Not Found</b>";
-      int send_length = sprintf(buffer_send, html_template, strlen(test), test);
-      write(clientfd, buffer_send, send_length);
+    // Get handler
+    br_handler handler;
+
+    if(route == NULL) {
+      handler = br->default_handler;
     } else {
-      int send_length = sprintf(buffer_send, html_template, strlen(handler->text), handler->text);
-      write(clientfd, buffer_send, send_length);
+      handler = route->handler;
     }
+
+    // Send response
+    br_response response;
+    
+    if(handler(&request, &response) != 0) {
+      perror("handler--error");
+      exit(-1);
+    }
+
+    int send_length = sprintf(buffer_send, html_template, strlen(response.content), response.content);
+    write(clientfd, buffer_send, send_length);
 
     // Close client socket
     close(clientfd);
