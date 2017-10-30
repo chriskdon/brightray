@@ -38,7 +38,6 @@ void br_server_set_port(br_server *br, int port) {
   br->port = port;
 }
 
-
 const char * br_status_code_to_message(int code)
 {
   switch(code)
