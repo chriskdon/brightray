@@ -3,6 +3,8 @@
 int handler(const br_request *req, br_response *res) {
   const char * path = br_request_path(req);
 
+  res->status_code = 200;
+
   br_response_set_content_string(res, path);
 
   return 0;

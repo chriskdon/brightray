@@ -26,14 +26,6 @@ typedef struct br_server {
   br_handler default_handler;
 } br_server;
 
-typedef struct br_request {
-  const char * path;
-} br_request;
-
-typedef struct br_response {
-  const char * content;
-} br_response;
-
 volatile bool listen_for_connections = true;
 int sockfd; // Listening socket
 
@@ -44,6 +36,18 @@ static void shutdown_server(int _){
 
 void br_server_set_port(br_server *br, int port) {
   br->port = port;
+}
+
+
+const char * br_status_code_to_message(int code)
+{
+  switch(code)
+  {
+    case 200: return "OK";
+    case 404: return "Not Found";
+    case 500: return "Internal Server Error";
+    default: return "Unknwon";
+  }
 }
 
 void br_server_route_add(br_server *br, const char *route, const br_handler handler) {
@@ -67,15 +71,8 @@ void br_server_route_default(br_server * br, const br_handler handler) {
   br->default_handler = handler;
 }
 
-const char * br_request_path(const br_request * request) {
-  return request->path;
-}
-
-void br_response_set_content_string(br_response * response, const char * str) {
-  response->content = str;
-}
-
 int br_default_handler(const br_request *req, br_response *res) {
+  res->status_code = 404;
   br_response_set_content_string(res, "Not Found");
 
   return 0;
@@ -136,7 +133,7 @@ int br_server_run(br_server * br) {
   }
 
   // Template
-  char * html_template = "HTTP/1.1 200 OK\r\n"
+  char * html_template = "HTTP/1.1 %d %s\r\n"
                          "Server: Brighray 0.0.1\r\n"
                          "Content-Length: %d\r\n"
                          "Content-Type: text/html\r\n"
@@ -185,7 +182,6 @@ int br_server_run(br_server * br) {
       handler = route->handler;
     }
 
-    // Send response
     br_response response;
     
     if(handler(&request, &response) != 0) {
@@ -193,7 +189,13 @@ int br_server_run(br_server * br) {
       exit(-1);
     }
 
-    int send_length = sprintf(buffer_send, html_template, strlen(response.content), response.content);
+    // Send Response
+    int send_length = sprintf(buffer_send, html_template, 
+      response.status_code, 
+      br_status_code_to_message(response.status_code),
+      response.content_length, 
+      response.content);
+
     write(clientfd, buffer_send, send_length);
 
     // Close client socket
