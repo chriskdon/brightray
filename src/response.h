@@ -4,11 +4,19 @@
 #include <stdlib.h>
 
 typedef struct br_response {
+  int status_code;
+
+  char * header_fields;
+  size_t header_fields_length;
+
   const char * content;
   size_t content_length;
-  int status_code;
 } br_response;
 
+void br_response_add_header(br_response * response, const char * field, const char * value);
+
 void br_response_set_content_string(br_response * response, const char * str);
+
+char * br_response_to_string(br_response * response);
 
 #endif

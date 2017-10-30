@@ -38,17 +38,6 @@ void br_server_set_port(br_server *br, int port) {
   br->port = port;
 }
 
-const char * br_status_code_to_message(int code)
-{
-  switch(code)
-  {
-    case 200: return "OK";
-    case 404: return "Not Found";
-    case 500: return "Internal Server Error";
-    default: return "Unknwon";
-  }
-}
-
 void br_server_route_add(br_server *br, const char *route, const br_handler handler) {
   brightray_route_node *node = malloc(sizeof(brightray_route_node));
 
@@ -105,7 +94,7 @@ int br_server_run(br_server * br) {
   
   struct sockaddr_in self;
   char buffer_recv[MAXBUF];
-  char buffer_send[MAXBUF];
+  //char buffer_send[MAXBUF];
 
   // Create streaming socket
   if((sockfd = socket(AF_INET, SOCK_STREAM, 0)) < 0) {
@@ -130,14 +119,6 @@ int br_server_run(br_server * br) {
     perror("socket--listen");
     exit(errno);
   }
-
-  // Template
-  char * html_template = "HTTP/1.1 %d %s\r\n"
-                         "Server: Brighray 0.0.1\r\n"
-                         "Content-Length: %d\r\n"
-                         "Content-Type: text/html\r\n"
-                         "\r\n"
-                         "%s";
 
   // Listen for connections
   while(listen_for_connections) {
@@ -182,6 +163,9 @@ int br_server_run(br_server * br) {
     }
 
     br_response response;
+
+    response.header_fields = NULL;
+    response.header_fields_length = 0;
     
     if(handler(&request, &response) != 0) {
       perror("handler--error");
@@ -189,13 +173,12 @@ int br_server_run(br_server * br) {
     }
 
     // Send Response
-    int send_length = sprintf(buffer_send, html_template, 
-      response.status_code, 
-      br_status_code_to_message(response.status_code),
-      response.content_length, 
-      response.content);
+    char * response_string = br_response_to_string(&response);
+    int send_length = strlen(response_string);
 
-    write(clientfd, buffer_send, send_length);
+    write(clientfd, response_string, send_length);
+
+    free(response_string);
 
     // Close client socket
     close(clientfd);

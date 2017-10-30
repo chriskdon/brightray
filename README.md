@@ -10,3 +10,9 @@
 - [ ] SSL
 - [ ] Static file handler
 - [ ] Images
+- [ ] Regex Routing
+- [ ] Remove `strlen()` where possible.
+
+## Resources
+
+https://www.w3.org/Protocols/rfc2616/rfc2616-sec6.html
