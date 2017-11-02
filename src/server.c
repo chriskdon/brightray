@@ -13,6 +13,7 @@
 #include <sds.h>
 
 #define MAXBUF 2048
+#define MAX_PATH_LENGTH 256
 
 typedef struct brightray_route_node {
   const char * route;
@@ -88,6 +89,34 @@ void br_server_free(br_server * br) {
   free(br);
 }
 
+/**
+ * Parse the path from the HTTP request.
+ * 
+ * The path will be stored in the 'path' paramaeter. It is the responsibility
+ * of the caller to free 'path'.
+ */
+br_error br__parse_path(const char * request, sds * path) {
+  *path = sdsempty();
+  
+  int i = 0;
+  
+  // Skip request method
+  while(request[i] != ' ') { i++; } 
+  i++;
+
+  // Get request path
+  int length;
+  for(length = 0; request[i] != ' ' && length <= MAX_PATH_LENGTH; i++, length++) {
+    *path = sdscatlen(*path, &request[i], 1);
+  }
+
+  if(request[i] != ' ' && length > MAX_PATH_LENGTH) {
+    return BR_ERROR_GENERIC;
+  }
+
+  return BR_SUCCESS;
+}
+
 int br_server_run(br_server * br) {
   signal(SIGINT,shutdown_server);
   signal(SIGTERM,shutdown_server);
@@ -95,7 +124,7 @@ int br_server_run(br_server * br) {
   printf("Starting Brightray: http://localhost:%d\n", br->port);
   
   struct sockaddr_in self;
-  sds buffer_recv = sdsnewlen();
+  sds buffer_recv = sdsnewlen("", MAXBUF);
   //char buffer_send[MAXBUF];
 
   // Create streaming socket
@@ -140,8 +169,11 @@ int br_server_run(br_server * br) {
     recv(clientfd, buffer_recv, MAXBUF, 0);
 
     // Parse request
-    char path[500];
-    sscanf(buffer_recv,"GET %s HTTP/1.1", path);
+    sds path = NULL;
+    if(br__parse_path(buffer_recv, &path) != BR_SUCCESS) {
+      printf("Could not parse path.\n");
+      goto end_connection;
+    }
     printf("Path: %s\n", path);
 
     // Fill Request
@@ -180,15 +212,15 @@ int br_server_run(br_server * br) {
 
     write(clientfd, response_string, send_length);
 
+    sdsfree(path);
     free(response_string);
 
+end_connection:
     // Close client socket
     close(clientfd);
   }
 
   br_server_free(br);
-
-  free(buffer_recv);
 
   printf("Server Shutdown Complete\n");
 
