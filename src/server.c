@@ -8,10 +8,10 @@
 #include <unistd.h>
 #include <stdbool.h>
 
+#include <sds.h>
+
 #include "brightray.h"
 #include "debug.h"
-
-#include <sds.h>
 
 #define MAXBUF 2048
 #define MAX_PATH_LENGTH 256
@@ -164,7 +164,9 @@ int br_server_run(br_server * br) {
     // The socket was closed when there were no connections
     if(!listen_for_connections) { break; }
     
-    printf("%s:%d connected\n", inet_ntoa(client_addr.sin_addr), ntohs(client_addr.sin_port));
+    DEBUG_PRINT("%s:%d connected\n", 
+      inet_ntoa(client_addr.sin_addr), 
+      ntohs(client_addr.sin_port));
 
     // Get the request
     recv(clientfd, buffer_recv, MAXBUF, 0);
@@ -172,7 +174,7 @@ int br_server_run(br_server * br) {
     // Parse request
     sds path = NULL;
     if(br__parse_path(buffer_recv, &path) != BR_SUCCESS) {
-      printf("Could not parse path.\n");
+      DEBUG_PRINT_ERR("Could not parse path.\n");
       goto end_connection;
     }
     DEBUG_PRINT("Path: %s\n", path);
