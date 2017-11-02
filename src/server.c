@@ -9,6 +9,7 @@
 #include <stdbool.h>
 
 #include "brightray.h"
+#include "debug.h"
 
 #include <sds.h>
 
@@ -174,7 +175,7 @@ int br_server_run(br_server * br) {
       printf("Could not parse path.\n");
       goto end_connection;
     }
-    printf("Path: %s\n", path);
+    DEBUG_PRINT("Path: %s\n", path);
 
     // Fill Request
     br_request request = {
