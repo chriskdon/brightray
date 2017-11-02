@@ -1,5 +1,13 @@
 # Brightray Server
 
+Build instructions:
+
+```
+Run setup.sh
+cd build
+cmake ..
+```
+
 ## TODO
 
 - [ ] Query Parameters

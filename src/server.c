@@ -10,6 +10,8 @@
 
 #include "brightray.h"
 
+#include <sds.h>
+
 #define MAXBUF 2048
 
 typedef struct brightray_route_node {
@@ -93,7 +95,7 @@ int br_server_run(br_server * br) {
   printf("Starting Brightray: http://localhost:%d\n", br->port);
   
   struct sockaddr_in self;
-  char buffer_recv[MAXBUF];
+  sds buffer_recv = sdsnewlen();
   //char buffer_send[MAXBUF];
 
   // Create streaming socket
@@ -185,6 +187,8 @@ int br_server_run(br_server * br) {
   }
 
   br_server_free(br);
+
+  free(buffer_recv);
 
   printf("Server Shutdown Complete\n");
 

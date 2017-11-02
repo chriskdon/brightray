@@ -5,5 +5,6 @@ file(GLOB brightray_SRC
   "*.c"
 )
 
-
 add_library(brightray STATIC ${brightray_SRC})
+
+target_link_libraries(brightray sds)
