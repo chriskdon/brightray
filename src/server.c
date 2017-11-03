@@ -33,8 +33,10 @@ do { \
 #define MAX_WRITE_HANDLES 1000
 #define MAX_HTTP_HEADERS 20
 
+// Globals
 static uv_loop_t * uv_loop;
 static uv_tcp_t server;
+static http_parser_settings parser_settings;
 
 typedef struct brightray_route_node {
   const char * route;
@@ -150,7 +152,49 @@ br_error br__parse_path(const char * request, sds * path) {
   return BR_SUCCESS;
 }
 
-void on_connect(uv_stream_t *server_handle, int status) {
+void alloc_cb(uv_handle_t * handle, size_t suggested_size, uv_buf_t * buf) {
+  *buf = uv_buf_init((char *) malloc(suggested_size), (unsigned int)suggested_size);
+}
+
+void on_close(uv_handle_t * handle) {
+  http_request_t * http_request = (http_request_t *) handle->data;
+
+  if (http_request != NULL) {
+    free(http_request);
+    http_request = NULL;
+  }
+}
+
+void on_read(uv_stream_t * stream, ssize_t nread, const uv_buf_t * buf) {
+  ssize_t parsed = 0;
+
+  http_request_t * http_request = stream->data;
+
+  if(nread >= 0) {
+    parsed = (ssize_t) http_parser_execute(
+      &http_request->parser, 
+      &parser_settings, 
+      buf->base, 
+      (size_t)nread);
+
+    if(parsed < nread) {
+      DEBUG_PRINT("PARSE ERROR");
+      uv_close((uv_handle_t *) &http_request->stream, on_close);
+    }
+  } else {
+    if(nread != UV_EOF) {
+      UV_ERR(nread, "Read error");
+    }
+
+    uv_close((uv_handle_t *) &http_request->stream, on_close);
+  }
+
+  if(buf->base != NULL) { free(buf->base); }
+}
+
+void on_connect(uv_stream_t * server_handle, int status) {
+  int ret;
+
   UV_CHECK(status, "connect");
 
   assert((uv_tcp_t *) server_handle == &server);
@@ -162,12 +206,41 @@ void on_connect(uv_stream_t *server_handle, int status) {
   http_request->stream.data = http_request;
   http_request->parser.data = http_request;
   http_request->req.data = http_request;
+
+  ret = uv_accept(server_handle, &http_request->stream);
+  if(ret == 0) {
+    // Init request struct
+    http_request->url = NULL;
+    http_request->method = NULL;
+    http_request->body = NULL;
+    http_request->header_lines = 0;
+    for (int i = 0; i < MAX_HTTP_HEADERS; ++i) {
+        http_request->headers[i].field = NULL;
+        http_request->headers[i].field_length = 0;
+        http_request->headers[i].value = NULL;
+        http_request->headers[i].value_length = 0;
+    }
+
+    http_parser_init(&http_request->parser, HTTP_REQUEST);
+    uv_read_start(&http_request->stream, alloc_cb, on_read);
+  } else {
+    DEBUG_PRINT("Error accepting request");
+    uv_close((uv_handle_t *) &http_request->stream, on_close);
+  }
 }
 
 int br_server_run(br_server * br) {
   struct sockaddr_in address;
 
   signal(SIGPIPE, SIG_IGN);
+
+  /*parser_settings.on_message_begin = on_message_begin;
+  parser_settings.on_url = on_url;
+  parser_settings.on_header_field = on_header_field;
+  parser_settings.on_header_value = on_header_value;
+  parser_settings.on_headers_complete = on_headers_complete;
+  parser_settings.on_body = on_body;
+  parser_settings.on_message_complete = on_message_complete;*/
 
   uv_loop = uv_default_loop();
 
