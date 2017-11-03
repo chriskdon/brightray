@@ -17,6 +17,6 @@ void br_response_add_header(br_response * response, const char * field, const ch
 
 void br_response_set_content_string(br_response * response, const char * str);
 
-char * br_response_to_string(br_response * response);
+int br_response_to_buffer(br_response * r, char ** buffer, size_t * length);
 
 #endif

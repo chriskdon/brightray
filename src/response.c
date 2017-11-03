@@ -2,6 +2,7 @@
 #include <strings.h>
 
 #include "response.h"
+#include "errors.h"
 
 void br_response_set_content_string(br_response * response, const char * str) {
   response->content = str;
@@ -34,12 +35,11 @@ const char * br_status_code_to_message(int code)
     case 200: return "OK";
     case 404: return "Not Found";
     case 500: return "Internal Server Error";
-    default: return "Unknwon";
+    default: return "Unknown";
   }
 }
 
-
-char * br_response_to_string(br_response * r) {
+int br_response_to_buffer(br_response * r, char ** buffer, size_t * length) {
   const char * html_template = "HTTP/1.1 %d %s\r\n"
                                "%s"
                                "\r\n"
@@ -52,12 +52,14 @@ char * br_response_to_string(br_response * r) {
   br_response_add_header(r, "Content-Length",   content_length);
   br_response_add_header(r, "Conent-Type",      "text/html");
 
-  char * buffer = malloc(1000 * sizeof(char));
-  sprintf(buffer, html_template, 
+  *buffer = malloc(1000 * sizeof(char));
+  sprintf(*buffer, html_template, 
     r->status_code, 
     br_status_code_to_message(r->status_code),
     r->header_fields,
     r->content);
 
-  return buffer;
+  *length = strlen(*buffer);
+
+  return BR_SUCCESS;
 }

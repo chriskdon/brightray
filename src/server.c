@@ -43,6 +43,7 @@ do { \
 static uv_loop_t * uv_loop;
 static uv_tcp_t server;
 static http_parser_settings parser_settings;
+static br_server * br_g_server;
 
 typedef struct brightray_route_node {
   const char * route;
@@ -354,9 +355,23 @@ int parser_on_message_complete(http_parser * parser) {
 
   http_request_t *http_request = parser->data;
 
+  char * url = http_request->url;
+
+  br_request req = { .path = url };
+  br_response res;
+
+  br_g_server->default_handler(&req, &res);
+
+  char * buffer = NULL; 
+  size_t length;
+
+  if(br_response_to_buffer(&res, &buffer, &length) != 0) {
+    return -1;
+  }
+
   // Set Header
-  http_request->resp_buf[0].base = HTTP_HEADER;
-  http_request->resp_buf[0].len = sizeof(HTTP_HEADER) - 1;
+  http_request->resp_buf[0].base = buffer;
+  http_request->resp_buf[0].len = length;
 
   uv_write(
     &http_request->req, 
@@ -371,6 +386,8 @@ int parser_on_message_complete(http_parser * parser) {
 int br_server_run(br_server * br) {
   struct sockaddr_in address;
 
+  br_g_server = br;
+
   signal(SIGPIPE, SIG_IGN);
 
   parser_settings.on_message_begin = parser_on_message_begin;
@@ -384,11 +401,11 @@ int br_server_run(br_server * br) {
   uv_loop = uv_default_loop();
 
   UV_CHECK(uv_tcp_init(uv_loop, &server), "tcp_init");
-  UV_CHECK(uv_ip4_addr("0.0.0.0", 8080, &address), "ip4_addr");
+  UV_CHECK(uv_ip4_addr("0.0.0.0", br->port, &address), "ip4_addr");
   UV_CHECK(uv_tcp_bind(&server, (const struct sockaddr *) &address, 0), "tcp_bind");
   UV_CHECK(uv_listen((uv_stream_t *) &server, MAX_WRITE_HANDLES, on_connect), "uv_listen");
   
-  printf("Listening on: 0.0.0.0:8080\n");
+  printf("Listening on: 0.0.0.0:%d\n", br->port);
 
   return uv_run(uv_loop, UV_RUN_DEFAULT);
 }
