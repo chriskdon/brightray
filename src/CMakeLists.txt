@@ -7,4 +7,4 @@ file(GLOB brightray_SRC
 
 add_library(brightray STATIC ${brightray_SRC})
 
-target_link_libraries(brightray sds)
+target_link_libraries(brightray sds uv)

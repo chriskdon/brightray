@@ -8,6 +8,8 @@
 #include <unistd.h>
 #include <stdbool.h>
 
+#include <uv.h>
+
 #include <sds.h>
 
 #include "brightray.h"
@@ -15,6 +17,21 @@
 
 #define MAXBUF 2048
 #define MAX_PATH_LENGTH 256
+
+#define UV_ERR(err, msg) fprintf(stderr, "%s: %s\n", msg, uv_strerror(err))
+
+#define UV_CHECK(err, msg) \
+do { \
+  if (err != 0) { \
+    UV_ERR(err, msg); \
+    exit(1); \
+  } \
+} while(0)
+
+#define MAX_WRITE_HANDLES 1000
+
+static uv_loop_t * uv_loop;
+static uv_tcp_t server;
 
 typedef struct brightray_route_node {
   const char * route;
@@ -118,114 +135,23 @@ br_error br__parse_path(const char * request, sds * path) {
   return BR_SUCCESS;
 }
 
+void on_connect(uv_stream_t *server_handle, int status) {
+
+}
+
 int br_server_run(br_server * br) {
-  signal(SIGINT,shutdown_server);
-  signal(SIGTERM,shutdown_server);
+  struct sockaddr_in address;
+
+  signal(SIGPIPE, SIG_IGN);
+
+  uv_loop = uv_default_loop();
+
+  UV_CHECK(uv_tcp_init(uv_loop, &server), "tcp_init");
+  UV_CHECK(uv_ip4_addr("0.0.0.0", 8080, &address), "ip4_addr");
+  UV_CHECK(uv_tcp_bind(&server, (const struct sockaddr *) &address, 0), "tcp_bind");
+  UV_CHECK(uv_listen((uv_stream_t *) &server, MAX_WRITE_HANDLES, on_connect), "uv_listen");
   
-  printf("Starting Brightray: http://localhost:%d\n", br->port);
-  
-  struct sockaddr_in self;
-  sds buffer_recv = sdsnewlen("", MAXBUF);
-  //char buffer_send[MAXBUF];
+  printf("Listening on: 0.0.0.0:8080\n");
 
-  // Create streaming socket
-  if((sockfd = socket(AF_INET, SOCK_STREAM, 0)) < 0) {
-    perror("Socket");
-    exit(errno);
-  }
-
-  // Initialize address/port struct
-  bzero(&self, sizeof(self));
-  self.sin_family       = AF_INET;
-  self.sin_port         = htons(br->port);
-  self.sin_addr.s_addr  = INADDR_ANY;
-
-  // Assign a port number to the socket
-  if(bind(sockfd, (struct sockaddr*)&self, sizeof(self)) != 0) {
-    perror("socket--bind");
-    exit(errno);
-  }
-
-  // Make it a listening socket
-  if(listen(sockfd, 20) != 0) {
-    perror("socket--listen");
-    exit(errno);
-  }
-
-  // Listen for connections
-  while(listen_for_connections) {
-    int clientfd;
-    struct sockaddr_in client_addr;
-    int addrlen = sizeof(client_addr);
-
-    // Accept connection
-    clientfd = accept(sockfd, (struct sockaddr*)&client_addr, (socklen_t*)&addrlen);
-    
-    // The socket was closed when there were no connections
-    if(!listen_for_connections) { break; }
-    
-    DEBUG_PRINT("%s:%d connected\n", 
-      inet_ntoa(client_addr.sin_addr), 
-      ntohs(client_addr.sin_port));
-
-    // Get the request
-    recv(clientfd, buffer_recv, MAXBUF, 0);
-
-    // Parse request
-    sds path = NULL;
-    if(br__parse_path(buffer_recv, &path) != BR_SUCCESS) {
-      DEBUG_PRINT_ERR("Could not parse path.\n");
-      goto end_connection;
-    }
-    DEBUG_PRINT("Path: %s\n", path);
-
-    // Fill Request
-    br_request request = {
-      .path = path
-    };
-
-    // Find matching route route
-    brightray_route_node *route = br->routes_root;  
-    while(route != NULL && strcmp(route->route, path) != 0) {
-      route = route->next;
-    }
-
-    // Get handler
-    br_handler handler;
-
-    if(route == NULL) {
-      handler = br->default_handler;
-    } else {
-      handler = route->handler;
-    }
-
-    br_response response;
-
-    response.header_fields = NULL;
-    response.header_fields_length = 0;
-    
-    if(handler(&request, &response) != 0) {
-      perror("handler--error");
-      exit(-1);
-    }
-
-    // Send Response
-    char * response_string = br_response_to_string(&response);
-    int send_length = strlen(response_string);
-
-    write(clientfd, response_string, send_length);
-
-    sdsfree(path);
-    free(response_string);
-
-end_connection:
-    // Close client socket
-    close(clientfd);
-  }
-
-  br_server_free(br);
-
-  printf("Server Shutdown Complete\n");
-
-  return 0;
+  return uv_run(uv_loop, UV_RUN_DEFAULT);
 }
