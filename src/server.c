@@ -355,21 +355,32 @@ int parser_on_message_complete(http_parser * parser) {
 
   http_request_t *http_request = parser->data;
 
+  // Find matching route
   char * url = http_request->url;
+  brightray_route_node * route = br_g_server->routes_root;
+  while(route != NULL && strcmp(url, route->route) != 0) {
+    route = route->next;
+  }
 
+  // Set the handler to the route handler or default if no route found
+  br_handler handler = br_g_server->default_handler;
+  if(route != NULL) {
+    handler = route->handler;
+  }
+
+  // Populate the response
   br_request req = { .path = url };
   br_response res;
+  handler(&req, &res);
 
-  br_g_server->default_handler(&req, &res);
-
+  // Convert response to HTTP response buffer
   char * buffer = NULL; 
   size_t length;
-
   if(br_response_to_buffer(&res, &buffer, &length) != 0) {
     return -1;
   }
 
-  // Set Header
+  // Write the response
   http_request->resp_buf[0].base = buffer;
   http_request->resp_buf[0].len = length;
 
