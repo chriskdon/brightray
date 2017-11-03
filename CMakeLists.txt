@@ -6,6 +6,7 @@ SET(CMAKE_C_FLAGS "-Wall -DDEBUG") # -Werror
 
 include_directories (${PROJECT_SOURCE_DIR}/src/)
 include_directories (${PROJECT_SOURCE_DIR}/vendor/sds)
+include_directories (${PROJECT_SOURCE_DIR}/vendor/http_parser)
 
 add_subdirectory(src)
 add_subdirectory(vendor)

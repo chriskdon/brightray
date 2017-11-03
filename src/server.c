@@ -9,6 +9,8 @@
 #include <stdbool.h>
 
 #include <uv.h>
+#include <http_parser.h>
+#include <assert.h>
 
 #include <sds.h>
 
@@ -29,6 +31,7 @@ do { \
 } while(0)
 
 #define MAX_WRITE_HANDLES 1000
+#define MAX_HTTP_HEADERS 20
 
 static uv_loop_t * uv_loop;
 static uv_tcp_t server;
@@ -47,13 +50,25 @@ typedef struct br_server {
   br_handler default_handler;
 } br_server;
 
-volatile bool listen_for_connections = true;
-int sockfd; // Listening socket
+typedef struct {
+  char *field;
+  char *value;
+  size_t field_length;
+  size_t value_length;
+} http_header_t;
 
-static void shutdown_server(int _){
-  listen_for_connections = false;
-  close(sockfd);
-}
+typedef struct {
+  uv_write_t req;
+  uv_stream_t stream;
+  http_parser parser;
+  char *url;
+  char *method;
+  int header_lines;
+  http_header_t headers[MAX_HTTP_HEADERS];
+  char *body;
+  size_t body_length;
+  uv_buf_t resp_buf[2];
+} http_request_t;
 
 void br_server_set_port(br_server *br, int port) {
   br->port = port;
@@ -136,7 +151,17 @@ br_error br__parse_path(const char * request, sds * path) {
 }
 
 void on_connect(uv_stream_t *server_handle, int status) {
+  UV_CHECK(status, "connect");
 
+  assert((uv_tcp_t *) server_handle == &server);
+
+  http_request_t * http_request = malloc(sizeof(http_request_t));
+
+  uv_tcp_init(uv_loop, (uv_tcp_t *) &http_request->stream);
+
+  http_request->stream.data = http_request;
+  http_request->parser.data = http_request;
+  http_request->req.data = http_request;
 }
 
 int br_server_run(br_server * br) {
