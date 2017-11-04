@@ -3,6 +3,15 @@
 
 #include <stdlib.h>
 
+#define MAX_HEADERS_COUNT 10
+
+typedef struct br_http_header_s {
+  char * field;
+  char * value;
+  size_t field_length;
+  size_t value_length;
+} br_http_header_t;
+
 typedef struct br_request_s {
   const char * path;
 } br_request_t;
@@ -10,10 +19,10 @@ typedef struct br_request_s {
 typedef struct br_response_s {
   int status_code;
 
-  char * header_fields;
-  size_t header_fields_length;
+  br_http_header_t * headers[MAX_HEADERS_COUNT];
+  int headers_length;
 
-  const char * content;
+  char * content;
   size_t content_length;
 } br_response_t;
 

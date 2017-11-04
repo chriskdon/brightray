@@ -39,20 +39,13 @@ static http_parser_settings parser_settings;
 static br_server_t * br_g_server;
 
 typedef struct {
-  char *field;
-  char *value;
-  size_t field_length;
-  size_t value_length;
-} http_header_t;
-
-typedef struct {
   uv_write_t req;
   uv_stream_t stream;
   http_parser parser;
   char *url;
   char *method;
   int header_lines;
-  http_header_t headers[MAX_HTTP_HEADERS];
+  br_http_header_t headers[MAX_HTTP_HEADERS];
   char *body;
   size_t body_length;
   uv_buf_t resp_buf[2];
@@ -182,7 +175,7 @@ void on_get_write(uv_write_t * req, int status){
   }
 
   for (int i = 0; i < http_request->header_lines; ++i) {
-      http_header_t * header = &http_request->headers[i];
+      br_http_header_t * header = &http_request->headers[i];
 
       if (header->field != NULL) {
           free(header->field);
@@ -225,7 +218,7 @@ int parser_on_header_field(http_parser * parser, const char * at, size_t length)
   DEBUG_PRINT("Header field: %.*s", (int)length, at);
 
   http_request_t * http_request = parser->data;
-  http_header_t * header = &http_request->headers[http_request->header_lines];
+  br_http_header_t * header = &http_request->headers[http_request->header_lines];
 
   header->field = malloc(length + 1);
   header->field_length = length;
@@ -240,7 +233,7 @@ int parser_on_header_value(http_parser * parser, const char * at, size_t length)
   DEBUG_PRINT("Header value: %.*s", (int)length, at);
 
   http_request_t * http_request = parser->data;
-  http_header_t * header = &http_request->headers[http_request->header_lines];
+  br_http_header_t * header = &http_request->headers[http_request->header_lines];
 
   header->value = malloc(length + 1);
   header->value_length = length;
@@ -283,9 +276,10 @@ int parser_on_body(http_parser * parser, const char * at, size_t length) {
 int parser_on_message_complete(http_parser * parser) {
   DEBUG_PRINT("Message Complete");
 
-  http_request_t *http_request = parser->data;
+  http_request_t * http_request = parser->data;
 
   // Find matching route
+  DEBUG_PRINT("Find matching route");
   char * url = http_request->url;
   br_route_node_t * route = br_g_server->routes_root;
   while(route != NULL && strcmp(url, route->route) != 0) {
@@ -293,22 +287,30 @@ int parser_on_message_complete(http_parser * parser) {
   }
 
   // Set the handler to the route handler or default if no route found
+  DEBUG_PRINT("Set handler");
   br_handler_f handler = br_g_server->default_handler;
   if(route != NULL) {
     handler = route->handler;
   }
 
-  // Populate the response
+  assert(handler != NULL);
+
+  
   br_request_t req = { .path = url };
-  br_response_t res;
-  handler(&req, &res);
+  br_response_t * res = br_response_new();
+
+  // Populate the response
+  handler(&req, res);
 
   // Convert response to HTTP response buffer
+  DEBUG_PRINT("Convert response to buffer");
   char * buffer = NULL; 
   size_t length;
-  if(br_response_to_buffer(&res, &buffer, &length) != 0) {
+  if(br_response_to_buffer(res, &buffer, &length) != 0) {
     return -1;
   }
+
+  br_response_free(res);
 
   // Write the response
   http_request->resp_buf[0].base = buffer;
@@ -325,6 +327,8 @@ int parser_on_message_complete(http_parser * parser) {
 }
 
 int br_server_run(br_server_t * br_server) {
+  assert(br_server != NULL);
+
   struct sockaddr_in address;
 
   br_g_server = br_server;

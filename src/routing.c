@@ -3,6 +3,10 @@
 #include "routing.h"
 
 void br_routes_add(br_server_t * br, const char * route, const br_handler_f handler) {
+  assert(br != NULL);
+  assert(route != NULL);
+  assert(handler != NULL);
+
   br_route_node_t * node = malloc(sizeof(br_route_node_t));
 
   node->route = route;
