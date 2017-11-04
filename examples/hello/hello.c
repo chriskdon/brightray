@@ -15,9 +15,9 @@ int main() {
 
   br_server_set_port(br, 8080);
 
-  br_server_route_add(br, "/", handler);
-  br_server_route_add(br, "/test", handler);
-  br_server_route_add(br, "/world", handler);
+  br_routes_add(br, "/", handler);
+  br_routes_add(br, "/test", handler);
+  br_routes_add(br, "/world", handler);
 
   return br_server_run(br);
 }

@@ -7,14 +7,13 @@
 #include <arpa/inet.h>
 #include <unistd.h>
 #include <stdbool.h>
+#include <assert.h>
 
 #include <uv.h>
 #include <http_parser.h>
-#include <assert.h>
-
 #include <sds.h>
 
-#include "brightray.h"
+#include "server.h"
 #include "debug.h"
 
 #define MAXBUF 2048
@@ -61,27 +60,6 @@ typedef struct {
 
 void br_server_set_port(br_server_t * br, int port) {
   br->port = port;
-}
-
-void br_server_route_add(br_server_t *br, const char *route, const br_handler_f handler) {
-  br_route_node_t * node = malloc(sizeof(br_route_node_t));
-
-  node->route = route;
-  node->handler = handler;
-  node->next = NULL;
-  node->prev = br->routes_last;
-
-  if(br->routes_last == NULL) {
-    br->routes_root = node;
-  } else {
-    br->routes_last->next = node;
-  }
-
-  br->routes_last = node;
-}
-
-void br_server_route_default(br_server_t * br, const br_handler_f handler) {
-  br->default_handler = handler;
 }
 
 int br_default_handler(const br_request_t * req, br_response_t * res) {

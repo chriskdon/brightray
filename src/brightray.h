@@ -3,6 +3,7 @@
 
 #include "errors.h"
 #include "server.h"
+#include "routing.h"
 #include "response.h"
 #include "request.h"
 
