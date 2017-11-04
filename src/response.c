@@ -4,12 +4,12 @@
 #include "response.h"
 #include "errors.h"
 
-void br_response_set_content_string(br_response * response, const char * str) {
+void br_response_set_content_string(br_response_t * response, const char * str) {
   response->content = str;
   response->content_length = strlen(str);
 }
 
-void br_response_add_header(br_response * response, const char * field, const char * value) {
+void br_response_add_header(br_response_t * response, const char * field, const char * value) {
   int field_length = strlen(field);
   int value_length = strlen(value);
   int length = response->header_fields_length + field_length + value_length + 4;
@@ -39,7 +39,7 @@ const char * br_status_code_to_message(int code)
   }
 }
 
-int br_response_to_buffer(br_response * r, char ** buffer, size_t * length) {
+int br_response_to_buffer(br_response_t * r, char ** buffer, size_t * length) {
   const char * html_template = "HTTP/1.1 %d %s\r\n"
                                "%s"
                                "\r\n"

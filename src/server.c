@@ -30,12 +30,6 @@ do { \
   } \
 } while(0)
 
-#define HTTP_HEADER "HTTP/1.1 200 OK\r\n"           \
-                    "Content-Type: text/html\r\n"   \
-                    "Content-Length: 20\r\n"        \
-                    "\r\n"                          \
-                    "Hello from Brightray"
-
 #define MAX_WRITE_HANDLES 1000
 #define MAX_HTTP_HEADERS 20
 
@@ -43,21 +37,7 @@ do { \
 static uv_loop_t * uv_loop;
 static uv_tcp_t server;
 static http_parser_settings parser_settings;
-static br_server * br_g_server;
-
-typedef struct brightray_route_node {
-  const char * route;
-  br_handler handler;
-  struct brightray_route_node * next;
-  struct brightray_route_node * prev; 
-} brightray_route_node;
-
-typedef struct br_server {
-  int port;
-  brightray_route_node * routes_root;
-  brightray_route_node * routes_last;
-  br_handler default_handler;
-} br_server;
+static br_server_t * br_g_server;
 
 typedef struct {
   char *field;
@@ -79,12 +59,12 @@ typedef struct {
   uv_buf_t resp_buf[2];
 } http_request_t;
 
-void br_server_set_port(br_server *br, int port) {
+void br_server_set_port(br_server_t * br, int port) {
   br->port = port;
 }
 
-void br_server_route_add(br_server *br, const char *route, const br_handler handler) {
-  brightray_route_node *node = malloc(sizeof(brightray_route_node));
+void br_server_route_add(br_server_t *br, const char *route, const br_handler_f handler) {
+  br_route_node_t * node = malloc(sizeof(br_route_node_t));
 
   node->route = route;
   node->handler = handler;
@@ -100,63 +80,35 @@ void br_server_route_add(br_server *br, const char *route, const br_handler hand
   br->routes_last = node;
 }
 
-void br_server_route_default(br_server * br, const br_handler handler) {
+void br_server_route_default(br_server_t * br, const br_handler_f handler) {
   br->default_handler = handler;
 }
 
-int br_default_handler(const br_request *req, br_response *res) {
+int br_default_handler(const br_request_t * req, br_response_t * res) {
   res->status_code = 404;
   br_response_set_content_string(res, "Not Found");
 
   return 0;
 }
 
-br_server * br_server_new() {
-  br_server * br = malloc(sizeof(br_server));
+br_server_t * br_server_new() {
+  br_server_t * server = malloc(sizeof(br_server_t));
 
-  br->port = 8080;
-  br->routes_root = NULL;
-  br->routes_last = NULL;
-  br->default_handler = br_default_handler;
+  server->port = 8080;
+  server->routes_root = NULL;
+  server->routes_last = NULL;
+  server->default_handler = br_default_handler;
 
-  return br;
+  return server;
 }
 
-void br_server_free(br_server * br) {
-  for(brightray_route_node *node = br->routes_last; node != NULL; node = node->prev)
+void br_server_free(br_server_t * br) {
+  for(br_route_node_t * node = br->routes_last; node != NULL; node = node->prev)
   {
     free(node);
   }
 
   free(br);
-}
-
-/**
- * Parse the path from the HTTP request.
- * 
- * The path will be stored in the 'path' paramaeter. It is the responsibility
- * of the caller to free 'path'.
- */
-br_error br__parse_path(const char * request, sds * path) {
-  *path = sdsempty();
-  
-  int i = 0;
-  
-  // Skip request method
-  while(request[i] != ' ') { i++; } 
-  i++;
-
-  // Get request path
-  int length;
-  for(length = 0; request[i] != ' ' && length <= MAX_PATH_LENGTH; i++, length++) {
-    *path = sdscatlen(*path, &request[i], 1);
-  }
-
-  if(request[i] != ' ' && length > MAX_PATH_LENGTH) {
-    return BR_ERROR_GENERIC;
-  }
-
-  return BR_SUCCESS;
 }
 
 void alloc_cb(uv_handle_t * handle, size_t suggested_size, uv_buf_t * buf) {
@@ -236,7 +188,7 @@ void on_connect(uv_stream_t * server_handle, int status) {
   }
 }
 
-void on_get_write(uv_write_t *req, int status){
+void on_get_write(uv_write_t * req, int status){
   http_request_t * http_request = req->data;
   
   UV_CHECK(status, "on_get_write");
@@ -357,20 +309,20 @@ int parser_on_message_complete(http_parser * parser) {
 
   // Find matching route
   char * url = http_request->url;
-  brightray_route_node * route = br_g_server->routes_root;
+  br_route_node_t * route = br_g_server->routes_root;
   while(route != NULL && strcmp(url, route->route) != 0) {
     route = route->next;
   }
 
   // Set the handler to the route handler or default if no route found
-  br_handler handler = br_g_server->default_handler;
+  br_handler_f handler = br_g_server->default_handler;
   if(route != NULL) {
     handler = route->handler;
   }
 
   // Populate the response
-  br_request req = { .path = url };
-  br_response res;
+  br_request_t req = { .path = url };
+  br_response_t res;
   handler(&req, &res);
 
   // Convert response to HTTP response buffer
@@ -394,10 +346,10 @@ int parser_on_message_complete(http_parser * parser) {
   return 0;
 }
 
-int br_server_run(br_server * br) {
+int br_server_run(br_server_t * br_server) {
   struct sockaddr_in address;
 
-  br_g_server = br;
+  br_g_server = br_server;
 
   signal(SIGPIPE, SIG_IGN);
 
@@ -412,11 +364,11 @@ int br_server_run(br_server * br) {
   uv_loop = uv_default_loop();
 
   UV_CHECK(uv_tcp_init(uv_loop, &server), "tcp_init");
-  UV_CHECK(uv_ip4_addr("0.0.0.0", br->port, &address), "ip4_addr");
+  UV_CHECK(uv_ip4_addr("0.0.0.0", br_server->port, &address), "ip4_addr");
   UV_CHECK(uv_tcp_bind(&server, (const struct sockaddr *) &address, 0), "tcp_bind");
   UV_CHECK(uv_listen((uv_stream_t *) &server, MAX_WRITE_HANDLES, on_connect), "uv_listen");
   
-  printf("Listening on: 0.0.0.0:%d\n", br->port);
+  printf("Listening on: 0.0.0.0:%d\n", br_server->port);
 
   return uv_run(uv_loop, UV_RUN_DEFAULT);
 }

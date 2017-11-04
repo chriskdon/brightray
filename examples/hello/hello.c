@@ -1,6 +1,6 @@
 #include <brightray.h>
 
-int handler(const br_request *req, br_response *res) {
+int handler(const br_request_t * req, br_response_t * res) {
   const char * path = br_request_path(req);
 
   res->status_code = 200;
@@ -11,7 +11,7 @@ int handler(const br_request *req, br_response *res) {
 }
 
 int main() {
-  br_server *br = br_server_new();
+  br_server_t * br = br_server_new();
 
   br_server_set_port(br, 8080);
 

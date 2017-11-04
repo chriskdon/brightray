@@ -4,21 +4,33 @@
 #include "request.h"
 #include "response.h"
 
-typedef struct br_server br_server;
+typedef int (* br_handler_f)(const br_request_t * request, br_response_t * response);
 
-typedef int (* br_handler)(const br_request * request, br_response * response);
+typedef struct br_route_node_s {
+  const char * route;
+  br_handler_f handler;
+  struct br_route_node_s * next;
+  struct br_route_node_s * prev; 
+} br_route_node_t;
 
-br_server * br_server_new();
-void br_server_free(br_server * br);
+typedef struct br_server_s {
+  int port;
+  br_route_node_t * routes_root;
+  br_route_node_t * routes_last;
+  br_handler_f default_handler;
+} br_server_t;
+
+br_server_t * br_server_new();
+void br_server_free(br_server_t * br);
 
 // Run Server
-int br_server_run(br_server * br);
+int br_server_run(br_server_t * br);
 
 // Config
-void br_server_set_port(br_server * br, int port);
+void br_server_set_port(br_server_t * br, int port);
 
 // Routing
-void br_server_route_add(br_server * br, const char * route, const br_handler handler);
-void br_server_route_default(br_server * br, const br_handler handler);
+void br_server_route_add(br_server_t * br, const char * route, const br_handler_f handler);
+void br_server_route_default(br_server_t * br, const br_handler_f handler);
 
 #endif
